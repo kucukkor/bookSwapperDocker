@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: bookswap_mongodb_local
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: bookswap
+    volumes:
+      - mongodb_data_local:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    ports:
+      - "27017:27017"
+    networks:
+      - bookswap_network_local
+
+  # Backend API
+  backend:
+    build: .
+    container_name: bookswap_backend_local
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      MONGODB_URI: mongodb://bookswap_user:bookswap_password@mongodb:27017/bookswap
+      JWT_SECRET: local_development_secret_key
+    volumes:
+      - ./uploads:/app/uploads
+      - .:/app  # Live reload için
+      - /app/node_modules  # node_modules'u container'da tut
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongodb
+    networks:
+      - bookswap_network_local
+    command: npm run dev  # Development mode
+
+  # Frontend Development Server
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: bookswap_frontend_local
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3001:3000"  # React dev server
+    environment:
+      - REACT_APP_API_URL=http://localhost:3000
+    depends_on:
+      - backend
+    networks:
+      - bookswap_network_local
+
+volumes:
+  mongodb_data_local:
+
+networks:
+  bookswap_network_local:
+    driver: bridge 
