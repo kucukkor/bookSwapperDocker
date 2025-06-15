@@ -1,0 +1,62 @@
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: bookswap_mongodb_prod
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: bookswap
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - bookswap_network
+    # MongoDB'yi sadece internal network'te tut
+    expose:
+      - "27017"
+
+  # Backend API
+  backend:
+    build: .
+    container_name: bookswap_backend_prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGODB_URI: mongodb://bookswap_user:${MONGO_APP_PASSWORD}@mongodb:27017/bookswap
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - ./uploads:/app/uploads
+    networks:
+      - bookswap_network
+    # Backend'i sadece internal network'te tut
+    expose:
+      - "3000"
+    depends_on:
+      - mongodb
+
+  # Frontend (Nginx serving static files + reverse proxy)
+  frontend:
+    image: nginx:alpine
+    container_name: bookswap_frontend_prod
+    restart: unless-stopped
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - bookswap_network
+    depends_on:
+      - backend
+
+volumes:
+  mongodb_data:
+
+networks:
+  bookswap_network:
+    driver: bridge 
