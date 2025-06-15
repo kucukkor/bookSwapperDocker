@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Production Deployment Script for Book Swap Platform
+# Production Deployment Script for Book Swap Platform (IP-based)
 set -e
 
-echo "🚀 Starting Book Swap Production Deployment..."
+echo "🚀 Starting Book Swap Production Deployment (IP-based)..."
 
 # Colors for output
 RED='\033[0;31m'
@@ -17,19 +17,23 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Get domain name
-read -p "Enter your domain name (e.g., bookswap.example.com): " DOMAIN
-if [ -z "$DOMAIN" ]; then
-    echo -e "${RED}Domain name is required!${NC}"
-    exit 1
-fi
-
-# Update nginx config with domain
-sed -i "s/YOUR_DOMAIN_HERE/$DOMAIN/g" nginx.prod.conf
+# Get server IP
+SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || hostname -I | awk '{print $1}')
+echo -e "${GREEN}Server IP detected: $SERVER_IP${NC}"
 
 echo -e "${YELLOW}📦 Building frontend...${NC}"
 cd frontend
+
+# Clean npm cache and remove lock file to avoid TailwindCSS v4 issues
+echo -e "${YELLOW}🧹 Cleaning npm cache...${NC}"
+npm cache clean --force
+rm -f package-lock.json
+rm -rf node_modules
+
+# Install dependencies
 npm install
+
+# Build frontend
 npm run build
 cd ..
 
@@ -43,28 +47,13 @@ MONGO_APP_PASSWORD=$(openssl rand -base64 32)
 # JWT Secret
 JWT_SECRET=$(openssl rand -base64 64)
 
-# Domain
-DOMAIN=$DOMAIN
+# Server IP
+SERVER_IP=$SERVER_IP
 EOF
 
 # Update mongo-init.js with new password
 MONGO_APP_PASSWORD=$(grep MONGO_APP_PASSWORD .env.prod | cut -d '=' -f2)
 sed -i "s/bookswap_password_2024/$MONGO_APP_PASSWORD/g" mongo-init.js
-
-echo -e "${YELLOW}🔒 Setting up SSL certificate...${NC}"
-# Create SSL directory
-mkdir -p ssl
-
-# Get SSL certificate with Certbot
-certbot certonly --standalone --non-interactive --agree-tos --email admin@$DOMAIN -d $DOMAIN
-
-# Copy certificates to ssl directory
-cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem ssl/
-cp /etc/letsencrypt/live/$DOMAIN/privkey.pem ssl/
-
-# Set proper permissions
-chmod 644 ssl/fullchain.pem
-chmod 600 ssl/privkey.pem
 
 echo -e "${YELLOW}🐳 Starting Docker containers...${NC}"
 # Stop any existing containers
@@ -85,21 +74,22 @@ else
     exit 1
 fi
 
-echo -e "${YELLOW}🔄 Setting up SSL certificate auto-renewal...${NC}"
-# Add cron job for certificate renewal
-(crontab -l 2>/dev/null; echo "0 12 * * * /usr/bin/certbot renew --quiet --deploy-hook 'docker-compose -f /opt/bookswap/docker-compose.prod.yml restart frontend'") | crontab -
-
 echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
 echo -e "${GREEN}Your Book Swap platform is now available at:${NC}"
-echo -e "${GREEN}  - HTTPS: https://$DOMAIN${NC}"
-echo -e "${GREEN}  - HTTP: http://$DOMAIN (redirects to HTTPS)${NC}"
+echo -e "${GREEN}  - HTTP: http://$SERVER_IP${NC}"
 echo ""
 echo -e "${YELLOW}📋 Next steps:${NC}"
-echo "1. Test the application: https://$DOMAIN"
+echo "1. Test the application: http://$SERVER_IP"
 echo "2. Check logs: docker-compose -f docker-compose.prod.yml logs"
 echo "3. Monitor services: docker-compose -f docker-compose.prod.yml ps"
 echo ""
 echo -e "${YELLOW}🔧 Useful commands:${NC}"
 echo "- Restart services: docker-compose -f docker-compose.prod.yml restart"
 echo "- View logs: docker-compose -f docker-compose.prod.yml logs [service_name]"
-echo "- Update application: git pull && ./deploy-production.sh" 
+echo "- Update application: git pull && ./deploy-production.sh"
+echo ""
+echo -e "${YELLOW}⚠️  Security Note:${NC}"
+echo "This deployment uses HTTP only. For production use, consider:"
+echo "1. Getting a domain name"
+echo "2. Setting up SSL/HTTPS with Let's Encrypt"
+echo "3. Using a reverse proxy like Cloudflare" 

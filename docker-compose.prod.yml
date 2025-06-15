@@ -45,10 +45,8 @@ services:
     volumes:
       - ./frontend/dist:/usr/share/nginx/html
       - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
     ports:
       - "80:80"
-      - "443:443"
     networks:
       - bookswap_network
     depends_on:
