@@ -65,7 +65,7 @@ const useSocket = () => {
       return;
     }
 
-    const newSocket = io('http://localhost:3000', {
+    const newSocket = io('http://167.99.210.227:3000', {
       auth: {
         token
       }

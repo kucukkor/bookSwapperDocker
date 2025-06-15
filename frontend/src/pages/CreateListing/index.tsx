@@ -188,7 +188,7 @@ export const CreateListing: React.FC = () => {
       // Get uploaded image URLs
       const uploadedImageUrls = responses.map(response => {
         const imageUrl = response.imageUrl;
-        return imageUrl.startsWith('http') ? imageUrl : `http://localhost:3000${imageUrl}`;
+        return imageUrl.startsWith('http') ? imageUrl : `http://167.99.210.227:3000${imageUrl}`;
       }).filter(Boolean);
       
       setIsUploading(false);
